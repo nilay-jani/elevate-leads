@@ -1,0 +1,86 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Hospital {
+  id                  String   @id @default(cuid())
+  name                String
+  nameNormalized      String
+  bedCount            Int?
+  bedCapacityStatus   String   @default("CONFIRMED") // CONFIRMED, UNKNOWN, EXCEEDS_MAX
+  bedEvidence         String?
+  category            String   @default("Independent Nursing Home") // Independent Nursing Home, Small Multispeciality, Private Surgical, Maternity & Nursing Home
+  city                String
+  state               String
+  country             String   @default("India")
+  address             String
+  pincode             String?
+  phone               String?
+  phoneNormalized     String?
+  website             String?
+  domain              String?
+  email               String?
+  emailNormalized     String?
+  emailSourceUrl      String?
+  hospitalSourceUrl   String?
+  emailStatus         String   @default("VERIFIED") // VERIFIED, UNVERIFIED, NOT_FOUND
+  isQualified         Boolean  @default(false)
+  websiteOpportunity  String?
+  auditScore          Int      @default(65)
+  discoveryDate       DateTime @default(now())
+  discoveryRunId      String?
+  notes               String?
+  reviewed            Boolean  @default(false)
+  contactStatus       String   @default("NEW") // NEW, REVIEWED, PITCH_PREPARED, CONTACTED, INTERESTED, NOT_INTERESTED
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  discoveryRun        DiscoveryRun? @relation(fields: [discoveryRunId], references: [id], onDelete: SetNull)
+
+  @@index([city])
+  @@index([bedCount])
+  @@index([emailStatus])
+  @@index([isQualified])
+  @@index([nameNormalized])
+  @@index([domain])
+  @@index([emailNormalized])
+  @@index([discoveryDate])
+}
+
+model GeoConfig {
+  id                String   @id @default("default")
+  targetCountry     String   @default("India")
+  dailyTarget       Int      @default(30)
+  maxBeds           Int      @default(25)
+  minBeds           Int      @default(5)
+  activeCitiesJson  String   // JSON array of city config objects
+  currentCityIndex  Int      @default(0)
+  searchRadiusKm    Int      @default(25)
+  autoRotate        Boolean  @default(true)
+  updatedAt         DateTime @updatedAt
+}
+
+model DiscoveryRun {
+  id                   String     @id @default(cuid())
+  startedAt            DateTime   @default(now())
+  completedAt          DateTime?
+  cityTarget           String
+  stateTarget          String
+  status               String     @default("RUNNING") // RUNNING, COMPLETED, FAILED
+  totalFound           Int        @default(0)
+  qualifiedCount       Int        @default(0)
+  verifiedEmailsCount  Int        @default(0)
+  unverifiedEmailsCount Int       @default(0)
+  missingEmailsCount   Int        @default(0)
+  duplicatesSkipped    Int        @default(0)
+  reportSummary        String?
+  logs                 String?    // JSON array of execution logs
+  hospitals            Hospital[]
+
+  createdAt            DateTime   @default(now())
+}

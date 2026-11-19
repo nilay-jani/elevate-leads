@@ -1,0 +1,37 @@
+{
+  "name": "elevate-hospital-leads",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3005",
+    "build": "next build",
+    "start": "next start -p 3005",
+    "db:push": "prisma db push",
+    "db:seed": "tsx scripts/seed.ts",
+    "discover:daily": "tsx scripts/run-discovery.ts",
+    "discover:test": "tsx scripts/run-discovery.ts --limit 5 --test",
+    "scheduler": "tsx scripts/scheduler.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "cheerio": "^1.0.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.75.0",
+    "next": "16.4.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "tailwind-merge": "^2.6.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@tailwindcss/postcss": "^4.0.0",
+    "postcss": "^8.4.38",
+    "prisma": "^6.19.3",
+    "tailwindcss": "^4.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.4.5"
+  }
+}
