@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
 
     const summary = await runDailyDiscovery({
       city: city || undefined,
-      limit: limit ? parseInt(limit, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : 10,
     });
 
     return NextResponse.json({

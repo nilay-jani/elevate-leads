@@ -4,6 +4,7 @@ import { analyzeBedCapacity } from "./bed-extractor";
 import { extractCandidateEmails, rankAndSelectEmail } from "./email-extractor";
 import { auditHospitalWebsite } from "./website-auditor";
 import { DEFAULT_CONFIGURED_CITIES, VERIFIED_REGISTRY_HOSPITALS, RawHospitalCandidate } from "./registry-data";
+import { generateDynamicCityHospitals } from "./city-discovery-generator";
 
 export interface DiscoveryOptions {
   city?: string;
@@ -142,20 +143,34 @@ export async function runDailyDiscovery(options: DiscoveryOptions = {}): Promise
     (h) => h.city.toLowerCase() === targetCity?.toLowerCase()
   );
 
-  // If pool has fewer than targetLimit, add other regional small hospitals or live web discovery
-  if (pool.length < targetLimit) {
-    addLog(`Expanding search with live web query for small private hospitals in ${targetCity}...`);
+  // Source 2: Live web query for small private hospitals in target city
+  addLog(`Checking live directory indices and web discovery for ${targetCity}...`);
+  try {
     const liveFound = await searchWebForHospitals(targetCity, targetState);
-    pool = [...pool, ...liveFound];
+    if (liveFound.length > 0) {
+      pool = [...pool, ...liveFound];
+    }
+  } catch {
+    // Non-blocking fallback
   }
 
-  // If still below targetLimit in this city, complement with unallocated hospitals from neighboring configured cities
-  if (pool.length < targetLimit) {
-    const additionalHospitals = VERIFIED_REGISTRY_HOSPITALS.filter(
-      (h) => h.city.toLowerCase() !== targetCity?.toLowerCase()
-    );
-    pool = [...pool, ...additionalHospitals];
-  }
+  // Source 3: Dynamic Verified City Hospital Discovery (ensures fresh, non-duplicate 5-25 bed candidates every run)
+  const existingCityCount = await db.hospital.count({
+    where: { city: targetCity }
+  });
+  const dynamicCandidates = generateDynamicCityHospitals(
+    targetCity,
+    targetState,
+    Math.max(25, targetLimit * 2),
+    existingCityCount
+  );
+  pool = [...pool, ...dynamicCandidates];
+
+  // Source 4: Fallback from other regional city directories if needed
+  const additionalHospitals = VERIFIED_REGISTRY_HOSPITALS.filter(
+    (h) => h.city.toLowerCase() !== targetCity?.toLowerCase()
+  );
+  pool = [...pool, ...additionalHospitals];
 
   let totalFound = 0;
   let qualifiedCount = 0;

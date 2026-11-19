@@ -74,7 +74,11 @@ export default function DashboardPage() {
       });
       const data = await res.json();
       if (data.success && data.summary) {
-        setToastMessage(`Discovery completed! ${data.summary.qualifiedCount} qualified hospital leads discovered in ${data.summary.city}. Skipped ${data.summary.duplicatesSkipped} duplicates.`);
+        if (data.summary.qualifiedCount > 0) {
+          setToastMessage(`Discovery completed! ${data.summary.qualifiedCount} new qualified hospital leads discovered in ${data.summary.city}! Added to database.`);
+        } else {
+          setToastMessage(`Discovery completed for ${data.summary.city}. Skipped ${data.summary.duplicatesSkipped} duplicates.`);
+        }
         await loadAll();
       } else {
         setToastMessage("Discovery completed with no new unique leads.");
