@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ensureDatabaseTables } from "@/lib/db";
 import { runDailyDiscovery } from "@/lib/discovery/engine";
 
 export async function POST(request: NextRequest) {
   try {
+    await ensureDatabaseTables();
     const body = await request.json().catch(() => ({}));
     const { city, limit } = body;
 

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { db, ensureDatabaseTables } from "@/lib/db";
 
 export async function GET(request: NextRequest) {
   try {
+    await ensureDatabaseTables();
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const city = searchParams.get("city") || "";

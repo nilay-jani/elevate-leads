@@ -1,9 +1,48 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { db, ensureDatabaseTables } from "@/lib/db";
 import { getOrCreateGeoConfig } from "@/lib/discovery/engine";
+import { VERIFIED_REGISTRY_HOSPITALS } from "@/lib/discovery/registry-data";
+import { normalizeDomain, normalizeEmail, normalizeName, normalizePhone } from "@/lib/discovery/deduplicator";
 
 export async function GET() {
   try {
+    await ensureDatabaseTables();
+
+    // Auto-seed if database is fresh
+    const initialCount = await db.hospital.count();
+    if (initialCount === 0) {
+      for (const h of VERIFIED_REGISTRY_HOSPITALS) {
+        await db.hospital.create({
+          data: {
+            name: h.name,
+            nameNormalized: normalizeName(h.name),
+            bedCount: h.bedCount,
+            bedCapacityStatus: "CONFIRMED",
+            bedEvidence: h.bedEvidence,
+            category: h.category,
+            city: h.city,
+            state: h.state,
+            country: h.country || "India",
+            address: h.address,
+            pincode: h.pincode,
+            phone: h.phone,
+            phoneNormalized: normalizePhone(h.phone),
+            website: h.website,
+            domain: normalizeDomain(h.website),
+            email: h.email,
+            emailNormalized: normalizeEmail(h.email),
+            emailSourceUrl: h.emailSourceUrl,
+            hospitalSourceUrl: h.hospitalSourceUrl,
+            emailStatus: h.emailStatus,
+            isQualified: true,
+            websiteOpportunity: h.websiteOpportunity,
+            auditScore: 70,
+            contactStatus: "NEW"
+          }
+        }).catch(() => {});
+      }
+    }
+
     const geoConfig = await getOrCreateGeoConfig();
     const activeCities = JSON.parse(geoConfig.activeCitiesJson);
     const currentCity = activeCities[geoConfig.currentCityIndex % activeCities.length];
