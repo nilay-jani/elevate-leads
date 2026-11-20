@@ -4,7 +4,6 @@ import { analyzeBedCapacity } from "./bed-extractor";
 import { extractCandidateEmails, rankAndSelectEmail } from "./email-extractor";
 import { auditHospitalWebsite } from "./website-auditor";
 import { DEFAULT_CONFIGURED_CITIES, VERIFIED_REGISTRY_HOSPITALS, RawHospitalCandidate } from "./registry-data";
-import { generateDynamicCityHospitals } from "./city-discovery-generator";
 
 export interface DiscoveryOptions {
   city?: string;
@@ -103,6 +102,33 @@ async function searchWebForHospitals(city: string, state: string): Promise<RawHo
   return discovered;
 }
 
+export async function isLiveWebsite(url?: string | null): Promise<boolean> {
+  if (!url) return false;
+  try {
+    const res = await fetch(url, {
+      method: "HEAD",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)"
+      },
+      signal: AbortSignal.timeout(4000)
+    });
+    return res.status >= 200 && res.status < 400;
+  } catch {
+    try {
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)"
+        },
+        signal: AbortSignal.timeout(4000)
+      });
+      return res.status >= 200 && res.status < 400;
+    } catch {
+      return false;
+    }
+  }
+}
+
 export async function runDailyDiscovery(options: DiscoveryOptions = {}): Promise<DiscoverySummary> {
   const startTime = Date.now();
   const config = await getOrCreateGeoConfig();
@@ -138,7 +164,7 @@ export async function runDailyDiscovery(options: DiscoveryOptions = {}): Promise
 
   addLog(`Querying verified small hospital registries and public directory indices for ${targetCity}...`);
 
-  // Source 1: Verified small hospital directory (filtered by city)
+  // Source 1: Verified real small hospital directory (filtered by city)
   let pool = VERIFIED_REGISTRY_HOSPITALS.filter(
     (h) => h.city.toLowerCase() === targetCity?.toLowerCase()
   );
@@ -154,19 +180,7 @@ export async function runDailyDiscovery(options: DiscoveryOptions = {}): Promise
     // Non-blocking fallback
   }
 
-  // Source 3: Dynamic Verified City Hospital Discovery (ensures fresh, non-duplicate 5-25 bed candidates every run)
-  const existingCityCount = await db.hospital.count({
-    where: { city: targetCity }
-  });
-  const dynamicCandidates = generateDynamicCityHospitals(
-    targetCity,
-    targetState,
-    Math.max(25, targetLimit * 2),
-    existingCityCount
-  );
-  pool = [...pool, ...dynamicCandidates];
-
-  // Source 4: Fallback from other regional city directories if needed
+  // Source 3: Fallback from other regional verified city directories
   const additionalHospitals = VERIFIED_REGISTRY_HOSPITALS.filter(
     (h) => h.city.toLowerCase() !== targetCity?.toLowerCase()
   );
@@ -201,7 +215,16 @@ export async function runDailyDiscovery(options: DiscoveryOptions = {}): Promise
       continue;
     }
 
-    // 2. Bed Capacity Qualification Check
+    // 2. Live Website Reachability Verification (guarantees real operating website)
+    if (candidate.website) {
+      const isLive = await isLiveWebsite(candidate.website);
+      if (!isLive) {
+        addLog(`[UNREACHABLE DOMAIN SKIPPED] ${candidate.name} - ${candidate.website} did not respond with 200 OK.`);
+        continue;
+      }
+    }
+
+    // 3. Bed Capacity Qualification Check
     // Max 25 beds, must have confirmed evidence
     const bedAnalysis = analyzeBedCapacity(candidate.name, candidate.bedEvidence, candidate.category, candidate.bedCount);
     if (!bedAnalysis.isQualified || !bedAnalysis.bedCount || bedAnalysis.bedCount > config.maxBeds) {
